@@ -52,4 +52,5 @@ Actionable Recommendation
 <img width="767" height="814" alt="image" src="https://github.com/user-attachments/assets/79ed1156-57b1-4886-8e37-84e5b8834fdb" />
 <img width="813" height="834" alt="image" src="https://github.com/user-attachments/assets/6f50584d-225d-4faf-b7a5-cb174753f8b6" />
 
-
+## DEMO VIDEO LINK
+https://www.youtube.com/watch?v=T1AumffQZVM
