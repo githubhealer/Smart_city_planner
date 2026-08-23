@@ -8,7 +8,7 @@ load_dotenv()
 
 # Configuration
 st.set_page_config(
-    page_title="Milan Smart City",
+    page_title="UrbanSense AI",
     layout="centered"
 )
 
@@ -32,17 +32,24 @@ def get_exasol_connection():
         websocket_sslopt={"cert_reqs": 0}
     )
 
-# Rain prediction
-def get_rain_prediction(prediction_date):
+# Get rain and air quality predictions
+def get_city_prediction(prediction_date):
     conn = get_exasol_connection()
 
     query = f"""
     SELECT
-        OBS_DATE_OUT,
-        RAIN_PROBABILITY,
-        PREDICTED_RAIN
-    FROM MILAN_WEATHER.MILAN_RF_PREDICTIONS
-    WHERE OBS_DATE_OUT = DATE '{prediction_date}'
+        R.OBS_DATE_OUT,
+        R.RAIN_PROBABILITY,
+        R.PREDICTED_RAIN,
+        A.PREDICTED_AQ_SCORE_AVG,
+        A.PREDICTED_AQ_SCORE_MIN,
+        A.PREDICTED_AQ_SCORE_MAX,
+        A.POLLUTION_SEVERITY_AVG,
+        A.POLLUTION_SEVERITY_MAX
+    FROM MILAN_WEATHER.MILAN_RF_PREDICTIONS R
+    LEFT JOIN MILAN_WEATHER.MILAN_AQ_PREDICTIONS A
+        ON R.OBS_DATE_OUT = A.OBS_DATE
+    WHERE R.OBS_DATE_OUT = DATE '{prediction_date}'
     """
 
     result = conn.execute(query)
@@ -52,25 +59,44 @@ def get_rain_prediction(prediction_date):
     if row is None:
         return {
             "status": "error",
-            "message": f"No prediction available for {prediction_date}."
+            "message": f"No prediction is available for {prediction_date}."
+        }
+
+    if row[3] is None:
+        return {
+            "status": "partial",
+            "prediction_date": str(row[0]),
+            "rain_probability": float(row[1]),
+            "predicted_rain": int(row[2]),
+            "air_quality_available": False,
+            "message": (
+                "Rain prediction is available, but air quality "
+                "prediction is not available for this date."
+            )
         }
 
     return {
         "status": "success",
         "prediction_date": str(row[0]),
         "rain_probability": float(row[1]),
-        "predicted_rain": int(row[2])
+        "predicted_rain": int(row[2]),
+        "air_quality_available": True,
+        "aq_score_average": float(row[3]),
+        "aq_score_min": float(row[4]),
+        "aq_score_max": float(row[5]),
+        "pollution_severity_average": float(row[6]),
+        "pollution_severity_max": float(row[7])
     }
 
 # Nova tool configuration
 tool_config = {
     "tools": [{
         "toolSpec": {
-            "name": "get_rain_prediction",
+            "name": "get_city_prediction",
             "description": (
-                "Gets the Random Forest rain prediction "
-                "from the Exasol Smart City weather model "
-                "for a specific date provided by the user."
+                "Gets the Smart City prediction for a specific date "
+                "from Exasol. The prediction contains both Random "
+                "Forest rain prediction and daily air quality prediction."
             ),
             "inputSchema": {
                 "json": {
@@ -79,8 +105,8 @@ tool_config = {
                         "prediction_date": {
                             "type": "string",
                             "description": (
-                                "Date for prediction in "
-                                "YYYY-MM-DD format."
+                                "The date for which the user wants "
+                                "the Smart City prediction in YYYY-MM-DD format."
                             )
                         }
                     },
@@ -91,7 +117,7 @@ tool_config = {
     }],
     "toolChoice": {
         "tool": {
-            "name": "get_rain_prediction"
+            "name": "get_city_prediction"
         }
     }
 }
@@ -101,34 +127,49 @@ tool_config_final = {
     "tools": tool_config["tools"]
 }
 
-# Nova processing
+# Process user request
 def process_request(user_input):
     messages = [{
         "role": "user",
         "content": [{
             "text": f"""
-You are a Smart City weather assistant.
+You are the Smart City AI assistant.
 
-The user will provide a date and information about their plans.
+The user will provide a date and information about their plans,
+travel schedule, walking, or outdoor activities.
 
-Extract the requested date and convert it to YYYY-MM-DD format.
+Your job is to:
 
-You MUST use the get_rain_prediction tool for that date.
-
-After receiving the prediction, provide ONLY the final answer to the user.
+1. Extract the requested date from the user's message.
+2. Convert the date to YYYY-MM-DD format.
+3. MUST use the get_city_prediction tool for that date.
+4. Use the returned rain and air-quality predictions.
+5. Give ONLY the final natural-language answer to the user.
 
 Do not describe your reasoning.
 Do not mention the tool.
-Do not explain how you extracted the date.
+Do not mention Exasol.
+Do not explain how the date was extracted.
 Do not repeat the user's question.
+Do not invent weather or air-quality information.
 
-Give concise, practical advice based on:
+For rain, consider:
 - rain probability
 - whether rain is predicted
 - the user's schedule
 - walking or outdoor activities
 
-Do not invent weather information.
+For air quality, consider:
+- average predicted AQ score
+- minimum and maximum predicted AQ score
+- average pollution severity
+- maximum pollution severity
+
+If air quality data is unavailable for the requested date,
+clearly say that air-quality prediction is unavailable,
+but still provide the rain-based recommendation.
+
+Give concise, practical advice.
 
 User request:
 
@@ -151,7 +192,7 @@ User request:
     output_message = response["output"]["message"]
     messages.append(output_message)
 
-    # Tool call
+    # Handle tool call
     tool_called = False
 
     for content in output_message["content"]:
@@ -161,7 +202,7 @@ User request:
         tool_called = True
         tool_use = content["toolUse"]
 
-        result = get_rain_prediction(
+        result = get_city_prediction(
             tool_use["input"]["prediction_date"]
         )
 
@@ -175,12 +216,13 @@ User request:
             }]
         })
 
+    # Handle missing tool call
     if not tool_called:
         for content in output_message["content"]:
             if "text" in content:
                 return content["text"].strip()
 
-        return "Unable to obtain a weather prediction."
+        return "Unable to obtain a Smart City prediction."
 
     # Second Nova call
     final_response = bedrock.converse(
@@ -193,7 +235,7 @@ User request:
         }
     )
 
-    # Get final response text
+    # Get final response
     final_text = ""
 
     for content in final_response["output"]["message"]["content"]:
@@ -202,7 +244,7 @@ User request:
 
     return final_text.strip()
 
-# Theme values
+# Theme colors
 if st.session_state.dark_mode:
     bg = "#05080d"
     card = "#101820"
@@ -246,13 +288,6 @@ st.markdown(
         max-width: 850px;
         padding-top: 25px;
         padding-bottom: 60px;
-    }}
-
-    /* Theme button */
-    .theme-container {{
-        display: flex;
-        justify-content: flex-end;
-        margin-bottom: 5px;
     }}
 
     .brand {{
@@ -423,15 +458,17 @@ with theme_right:
 st.markdown(
     """
     <div class="brand">
-        <div class="brand-mark">☁</div>
-        <div class="brand-text">Milan Smart City</div>
+        <div class="brand-text">UrbanSense AI</div>
     </div>
     """,
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="tagline">Intelligent weather insights for smarter daily decisions</div>',
+    '<div class="tagline">'
+    'Intelligent weather and air-quality insights '
+    'for smarter daily decisions'
+    '</div>',
     unsafe_allow_html=True
 )
 
@@ -439,11 +476,14 @@ st.markdown(
 st.markdown(
     """
     <div class="hero-card">
-        <div class="hero-title">Plan your day</div>
+        <div class="hero-title">
+            Plan your day
+        </div>
         <div class="hero-description">
             Tell us where you are going, when you are travelling,
             and what outdoor activities you have planned.
-            Our AI will check the weather prediction and help you prepare.
+            Our AI will check the weather and air-quality
+            predictions and help you prepare.
         </div>
     """,
     unsafe_allow_html=True
@@ -455,17 +495,20 @@ user_input = st.text_area(
         "I'm going to college on 2023-06-16. "
         "I leave home at 6 AM and return at 7 PM. "
         "I have to walk for 20 minutes. "
-        "Tell me if I should prepare for rain."
+        "Tell me if I should prepare for rain and "
+        "whether the air quality will be suitable."
     ),
     height=145
 )
 
+# Check prediction
 if st.button("Check My Day", use_container_width=True):
     if not user_input.strip():
         st.warning("Please enter your plans.")
     else:
         with st.spinner(
-            "Analysing your plans and checking the prediction..."
+            "Analysing your plans and checking "
+            "weather and air quality..."
         ):
             try:
                 answer = process_request(user_input)
@@ -474,7 +517,7 @@ if st.button("Check My Day", use_container_width=True):
                     f"""
                     <div class="result-card">
                         <div class="result-header">
-                            Weather Recommendation
+                            Smart City Recommendation
                         </div>
                         <div class="result-content">
                             {answer}
@@ -485,4 +528,6 @@ if st.button("Check My Day", use_container_width=True):
                 )
 
             except Exception as e:
-                st.error(f"Unable to process the request: {e}")
+                st.error(
+                    f"Unable to process the request: {e}"
+                )
