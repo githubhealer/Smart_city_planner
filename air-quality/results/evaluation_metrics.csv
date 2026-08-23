@@ -1,0 +1,6 @@
+metric,value
+MAE,0.23785188819748576
+RMSE,0.3155134270475751
+R2,0.9996327347098919
+Predictions_within_5_points_percent,100.0
+Predictions_within_10_points_percent,100.0

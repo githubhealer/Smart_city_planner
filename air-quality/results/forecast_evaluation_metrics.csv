@@ -1,0 +1,6 @@
+metric,value
+MAE,1.2555637249401965
+RMSE,1.8109962300728246
+R2,0.9644070468870133
+Predictions_within_5_ug_m3_percent,97.98944816768858
+Predictions_within_10_ug_m3_percent,99.84314843861401
