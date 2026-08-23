@@ -1,17 +1,33 @@
 import os
+import streamlit as st
 import boto3
 import pyexasol
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# AWS Bedrock
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+st.set_page_config(
+    page_title="Milan Smart City",
+    layout="centered"
+)
+
+# ============================================================
+# AWS BEDROCK
+# ============================================================
+
 bedrock = boto3.client(
     "bedrock-runtime",
     region_name=os.getenv("AWS_REGION")
 )
 
-# Exasol connection
+# ============================================================
+# EXASOL
+# ============================================================
+
 def get_exasol_connection():
     return pyexasol.connect(
         dsn=os.getenv("EXASOL_DSN"),
@@ -21,28 +37,18 @@ def get_exasol_connection():
         websocket_sslopt={"cert_reqs": 0}
     )
 
-# Get rain prediction from Exasol
+# ============================================================
+# RAIN PREDICTION
+# ============================================================
+
 def get_rain_prediction(prediction_date):
     conn = get_exasol_connection()
 
-    try:
-        parts = prediction_date.split("-")
-        if len(parts) != 3:
-            raise ValueError
-
-        year, month, day = parts
-        if len(year) != 4 or len(month) != 2 or len(day) != 2:
-            raise ValueError
-
-    except Exception:
-        conn.close()
-        return {
-            "status": "error",
-            "message": "Invalid date format. Use YYYY-MM-DD."
-        }
-
     query = f"""
-    SELECT OBS_DATE_OUT, RAIN_PROBABILITY, PREDICTED_RAIN
+    SELECT
+        OBS_DATE_OUT,
+        RAIN_PROBABILITY,
+        PREDICTED_RAIN
     FROM MILAN_WEATHER.MILAN_RF_PREDICTIONS
     WHERE OBS_DATE_OUT = DATE '{prediction_date}'
     """
@@ -54,7 +60,7 @@ def get_rain_prediction(prediction_date):
     if row is None:
         return {
             "status": "error",
-            "message": f"No prediction is available for {prediction_date}."
+            "message": f"No prediction available for {prediction_date}."
         }
 
     return {
@@ -64,16 +70,18 @@ def get_rain_prediction(prediction_date):
         "predicted_rain": int(row[2])
     }
 
-# Nova tool configuration
+# ============================================================
+# NOVA TOOL
+# ============================================================
+
 tool_config = {
     "tools": [{
         "toolSpec": {
             "name": "get_rain_prediction",
             "description": (
-                "Gets the Random Forest rain prediction from the "
-                "Exasol Smart City weather model for a specific date. "
-                "Use this tool whenever the user asks about rain or "
-                "weather risk for a specific date."
+                "Gets the Random Forest rain prediction "
+                "from the Exasol Smart City weather model "
+                "for a specific date provided by the user."
             ),
             "inputSchema": {
                 "json": {
@@ -82,8 +90,8 @@ tool_config = {
                         "prediction_date": {
                             "type": "string",
                             "description": (
-                                "The date for which the user wants "
-                                "the rain prediction in YYYY-MM-DD format."
+                                "Date for prediction in "
+                                "YYYY-MM-DD format."
                             )
                         }
                     },
@@ -99,143 +107,271 @@ tool_config = {
     }
 }
 
-# Configuration for final Nova call
+# ============================================================
+# FINAL NOVA TOOL CONFIG
+# ============================================================
+
 tool_config_final = {
     "tools": tool_config["tools"]
 }
 
-# Get user input
-print("\n==============================================")
-print("       MILAN SMART CITY RAIN ASSISTANT")
-print("==============================================\n")
-print("Enter your request.\n")
-print("Example:")
-print(
-    "I am going to college on 2023-06-16. "
-    "I leave home at 6 AM and return at 7 PM. "
-    "I have to walk for 20 minutes. "
-    "Tell me if I should prepare for rain."
-)
-print("\nType 'exit' to quit.\n")
+# ============================================================
+# NOVA PROCESSING
+# ============================================================
 
-user_input = input("You: ")
-
-if user_input.lower().strip() == "exit":
-    print("Goodbye!")
-    exit()
-
-# Initial message
-messages = [{
-    "role": "user",
-    "content": [{
-        "text": f"""
-You are a Smart City weather assistant.
-
-The user will describe their plans and provide a date.
-
-Your job is to:
-1. Extract the date from the user's request.
-2. Convert it to YYYY-MM-DD format.
-3. Use the get_rain_prediction tool to obtain the Random Forest prediction.
-4. After receiving the prediction, provide ONLY the final answer.
-5. Give a concise, practical answer based on the prediction and user's plans.
-6. Consider the user's schedule, walking, outdoor activities and other relevant details.
-
-Do not describe your reasoning.
-Do not mention tool calls.
-Do not explain how you extracted the date.
-Do not repeat the user's question.
-Do not invent weather information.
-Use only the prediction returned by the tool.
-
-User request:
-{user_input}
-"""
-    }]
-}]
-
-# First Nova call
-response = bedrock.converse(
-    modelId="amazon.nova-lite-v1:0",
-    messages=messages,
-    toolConfig=tool_config,
-    inferenceConfig={
-        "temperature": 0,
-        "maxTokens": 500
-    }
-)
-
-output_message = response["output"]["message"]
-messages.append(output_message)
-
-# Process tool call
-tool_called = False
-
-for content in output_message["content"]:
-    if "toolUse" not in content:
-        continue
-
-    tool_called = True
-    tool_use = content["toolUse"]
-
-    print("\n----------------------------------------------")
-    print("Nova requested tool:")
-    print("----------------------------------------------")
-    print("Tool:", tool_use["name"])
-    print("Input:", tool_use["input"])
-
-    result = get_rain_prediction(
-        tool_use["input"]["prediction_date"]
-    )
-
-    print("\n----------------------------------------------")
-    print("Exasol prediction:")
-    print("----------------------------------------------")
-    print(result)
-
-    messages.append({
+def process_request(user_input):
+    messages = [{
         "role": "user",
         "content": [{
-            "toolResult": {
-                "toolUseId": tool_use["toolUseId"],
-                "content": [{"json": result}]
-            }
+            "text": f"""
+You are a Smart City weather assistant.
+
+The user will provide a date and information about
+their plans.
+
+Extract the requested date and convert it to
+YYYY-MM-DD format.
+
+You MUST use the get_rain_prediction tool for that date.
+
+After receiving the prediction, provide ONLY the
+final answer to the user.
+
+Do not describe your reasoning.
+Do not mention the tool.
+Do not explain how you extracted the date.
+Do not repeat the user's question.
+
+Give concise, practical advice based on:
+- rain probability
+- whether rain is predicted
+- the user's schedule
+- walking or outdoor activities
+
+Do not invent weather information.
+
+User request:
+
+{user_input}
+"""
         }]
-    })
+    }]
 
-# Safety check
-if not tool_called:
-    print("\n----------------------------------------------")
-    print("Nova did not call the prediction tool.")
-    print("----------------------------------------------")
+    # First Nova call
+    response = bedrock.converse(
+        modelId="amazon.nova-lite-v1:0",
+        messages=messages,
+        toolConfig=tool_config,
+        inferenceConfig={
+            "temperature": 0,
+            "maxTokens": 500
+        }
+    )
 
+    output_message = response["output"]["message"]
+    messages.append(output_message)
+
+    # Tool call
     for content in output_message["content"]:
+        if "toolUse" not in content:
+            continue
+
+        tool_use = content["toolUse"]
+
+        result = get_rain_prediction(
+            tool_use["input"]["prediction_date"]
+        )
+
+        messages.append({
+            "role": "user",
+            "content": [{
+                "toolResult": {
+                    "toolUseId": tool_use["toolUseId"],
+                    "content": [{"json": result}]
+                }
+            }]
+        })
+
+    # Second Nova call
+    final_response = bedrock.converse(
+        modelId="amazon.nova-lite-v1:0",
+        messages=messages,
+        toolConfig=tool_config_final,
+        inferenceConfig={
+            "temperature": 0.2,
+            "maxTokens": 500
+        }
+    )
+
+    # Get final text
+    final_text = ""
+
+    for content in final_response["output"]["message"]["content"]:
         if "text" in content:
-            print(content["text"])
+            final_text += content["text"]
 
-    exit()
+    return final_text.strip()
 
-# Second Nova call
-final_response = bedrock.converse(
-    modelId="amazon.nova-lite-v1:0",
-    messages=messages,
-    toolConfig=tool_config_final,
-    inferenceConfig={
-        "temperature": 0.2,
-        "maxTokens": 500
+# ============================================================
+# UI
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+
+    /* Entire application */
+    .stApp {
+        background-color: #000000;
+        color: #ffffff;
     }
+
+    /* Main content */
+    .main .block-container {
+        max-width: 900px;
+        padding-top: 60px;
+        padding-bottom: 50px;
+    }
+
+    /* Title */
+    .main-title {
+        text-align: center;
+        color: #ffffff;
+        font-size: 36px;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    /* Subtitle */
+    .subtitle {
+        text-align: center;
+        color: #aaaaaa;
+        font-size: 18px;
+        margin-bottom: 40px;
+    }
+
+    /* Text area label */
+    label {
+        color: #ffffff !important;
+        font-size: 16px !important;
+    }
+
+    /* Text area */
+    textarea {
+        background-color: #111111 !important;
+        color: #ffffff !important;
+        border: 1px solid #444444 !important;
+        border-radius: 12px !important;
+        font-size: 16px !important;
+    }
+
+    textarea::placeholder {
+        color: #777777 !important;
+    }
+
+    /* Button */
+    .stButton > button {
+        width: 100%;
+        background-color: #ffffff;
+        color: #000000;
+        border: none;
+        border-radius: 10px;
+        padding: 12px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        margin-top: 10px;
+    }
+
+    .stButton > button:hover {
+        background-color: #dddddd;
+        color: #000000;
+    }
+
+    /* Result card */
+    .result-card {
+        background-color: #111111;
+        color: #ffffff !important;
+        border: 1px solid #333333;
+        padding: 24px;
+        border-radius: 12px;
+        margin-top: 30px;
+        font-size: 18px;
+        line-height: 1.6;
+    }
+
+    .result-card p {
+        color: #ffffff !important;
+    }
+
+    /* Spinner */
+    .stSpinner > div {
+        border-top-color: #ffffff !important;
+    }
+
+    /* Warning / error text */
+    .stAlert {
+        background-color: #111111 !important;
+        color: #ffffff !important;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
-# Display final response
-print("\n==============================================")
-print("          SMART CITY RESPONSE")
-print("==============================================\n")
+# ============================================================
+# HEADER
+# ============================================================
 
-for content in final_response["output"]["message"]["content"]:
-    if "text" in content:
-        text = content["text"]
-        text = text.replace("<thinking>", "")
-        text = text.replace("</thinking>", "")
-        text = text.replace("<response>", "")
-        text = text.replace("</response>", "")
-        print(text.strip())
+st.markdown(
+    '<div class="main-title">Milan Smart City</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="subtitle">Rain & Travel Assistant</div>',
+    unsafe_allow_html=True
+)
+
+# ============================================================
+# USER INPUT
+# ============================================================
+
+user_input = st.text_area(
+    "Tell me about your plans",
+    placeholder=(
+        "I'm going to college on 2023-06-16. "
+        "I leave home at 6 AM and return at 7 PM. "
+        "I have to walk for 20 minutes. "
+        "Tell me if I should prepare for rain."
+    ),
+    height=140
+)
+
+# ============================================================
+# CHECK BUTTON
+# ============================================================
+
+if st.button("Check My Day", use_container_width=True):
+
+    if not user_input.strip():
+        st.warning("Please enter your plans.")
+
+    else:
+        with st.spinner("Checking the weather prediction..."):
+            try:
+                answer = process_request(user_input)
+
+                st.markdown(
+                    f"""
+                    <div class="result-card">
+                        {answer}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            except Exception as e:
+                st.error(
+                    f"Unable to process the request: {e}"
+                )
