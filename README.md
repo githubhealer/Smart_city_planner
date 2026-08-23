@@ -45,3 +45,7 @@ Predictions
 Amazon Nova
     ↓
 Actionable Recommendation
+
+## OUTPUT SCREENSHOT
+<img width="767" height="814" alt="image" src="https://github.com/user-attachments/assets/79ed1156-57b1-4886-8e37-84e5b8834fdb" />
+
