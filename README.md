@@ -50,5 +50,6 @@ Actionable Recommendation
 
 ## OUTPUT SCREENSHOTS
 <img width="767" height="814" alt="image" src="https://github.com/user-attachments/assets/79ed1156-57b1-4886-8e37-84e5b8834fdb" />
-<img width="788" height="811" alt="image" src="https://github.com/user-attachments/assets/5672a3fb-655c-4815-8bf7-b5a04986b5a1" />
+<img width="813" height="834" alt="image" src="https://github.com/user-attachments/assets/6f50584d-225d-4faf-b7a5-cb174753f8b6" />
+
 
