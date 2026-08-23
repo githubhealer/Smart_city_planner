@@ -1,187 +1,47 @@
-## UrbanSense AI
+# UrbanSense AI
 
-An urban decision-support system for the Exasol AI Build Hackathon. The project combines heterogeneous city data such as weather, traffic, and air quality to identify emerging urban problems, estimate their potential impact, and recommend actionable interventions.
+UrbanSense AI is an urban decision-support system developed for the Exasol AI Build Hackathon. It combines machine learning, Exasol, and AI to transform weather and air-quality data into practical, data-driven recommendations.
 
-The current implementation focuses on the weather component and demonstrates the complete data-to-decision pipeline using Milan weather data and machine learning.
+The current implementation focuses on weather and air quality and demonstrates the complete pipeline from raw urban data to machine-learning predictions and AI-powered decisions.
 
-## Features
+## Problem
 
-* Weather data processing and daily aggregation
-* Rain prediction using machine learning
-* Logistic Regression baseline
-* Random Forest final model
-* Rain probability prediction using Exasol Python UDFs
-* Rain-risk classification
-* City action recommendations based on predicted risk
-* Air-quality forecasting using XGBoost
-* Next-hour PM2.5 prediction
-* Air-quality risk scoring
-* LLM-based air-quality explanation
+Cities generate large volumes of data from different urban systems such as weather and air quality. This data is often processed independently and primarily used for monitoring rather than making timely, actionable decisions.
 
-## Technologies
+For example:
 
-* Exasol
-* SQL
-* Python
-* Exasol Python UDFs
-* NumPy
-* scikit-learn
-* Logistic Regression
-* Random Forest
-* XGBoost
-* Pandas
-* LLM
+- Rain can affect commuting and outdoor activities.
+- Poor air quality can create health and environmental risks.
+- Different urban signals can indicate risks that are difficult to interpret from raw data alone.
 
-## Urban Datasets
+The challenge is to transform this heterogeneous urban data into meaningful predictions, identify potential risks, and provide actionable recommendations.
 
-The hackathon solution uses three main data sources.
+## Solution
 
-### Weather
+UrbanSense AI addresses this problem through a three-layer architecture:
 
-* Temperature
-* Humidity
-* Dew point
-* Precipitation
-* Rain
-* Pressure
-* Cloud cover
-* Wind
-* Solar radiation
+1. **Machine Learning Layer**  
+   Weather and air-quality data are processed and used to train prediction models.
 
-### Traffic
+2. **Exasol Data and Prediction Layer**  
+   Exasol stores the processed data and machine-learning predictions and provides the data layer for the AI application.
 
-Traffic data will be used to identify and assess traffic conditions and their interaction with other urban factors.
+3. **AI Decision-Support Layer**  
+   Amazon Nova interprets natural-language user requests, retrieves the relevant predictions through a tool connected to Exasol, and generates practical recommendations.
 
-Integration: To be added
+The overall pipeline is:
 
-### Air Quality
-
-Air-quality data is used to forecast near-term pollution levels and identify air-quality risks.
-
-Current implementation:
-
-* PM2.5, PM10, NO2, SO2 and O3
-* Air-quality preprocessing and duplicate removal
-* Temporal feature engineering
-* Next-hour PM2.5 prediction using XGBoost
-* Project-specific air-quality risk scoring
-* LLM-based explanation and recommendations
-
-Model performance:
-
-* MAE: 1.256 µg/m³
-* RMSE: 1.811 µg/m³
-* R²: 0.964
-
-Data source: Milan Air Quality and Weather Dataset (Kaggle)
-
-## Current ML Pipeline
-
-Weather Data → Daily Aggregation → Feature Engineering → Exasol → Random Forest → Rain Probability → Rain Risk → City Action
-
-Air Quality Data → Preprocessing → Feature Engineering → Exasol → XGBoost → Next-hour PM2.5 → Air Quality Risk → LLM Explanation
-
-The planned complete urban-data pipeline is:
-
-Weather + Traffic + Air Quality → Urban Risk Analysis → Impact Prediction → Recommended Action
-
-## Model
-
-The current Random Forest model uses 16 weather features.
-
-Configuration:
-
-* n_estimators = 300
-* max_depth = 8
-* min_samples_leaf = 3
-* random_state = 42
-
-The model produces both a rain probability and a rain/no-rain prediction.
-
-## Results
-
-The current test set contains 363 days.
-
-Random Forest confusion matrix:
-
-| Actual  | Predicted | Days |
-| ------- | --------- | ---: |
-| No Rain | No Rain   |  157 |
-| No Rain | Rain      |   93 |
-| Rain    | No Rain   |   35 |
-| Rain    | Rain      |   78 |
-
-Accuracy: 64.74%
-
-Rain probabilities ranged from approximately 4.06% to 67.74%.
-
-## Risk Classification
-
-| Probability | Risk      | City Action                             |
-| ----------- | --------- | --------------------------------------- |
-| < 20%       | LOW       | Normal city operations                  |
-| 20%–<40%    | MODERATE  | Monitor drainage and outdoor activities |
-| 40%–<60%    | HIGH      | Prepare drainage and traffic management |
-| >= 60%      | VERY HIGH | Activate high-rain preparedness         |
-
-Current test-set distribution:
-
-* LOW: 84 days
-* MODERATE: 183 days
-* HIGH: 89 days
-* VERY HIGH: 7 days
-
-## Exasol Integration
-
-The current machine-learning implementation runs inside Exasol using Python UDFs.
-
-The UDF-based pipeline performs model training and prediction, producing rain probabilities that are converted into city-risk information.
-
-## How to Run
-
-Requires:
-
-* Exasol database
-* Python 3
-* NumPy
-* scikit-learn
-
-Detailed setup and execution instructions: To be added
-
-## Project Structure
-
-project/
-├── README.md
-├── udf/
-│   └── Exasol Python UDF scripts
-├── sql/
-│   └── SQL scripts
-├── data/
-│   └── Dataset information
-├── presentation/
-│   └── Pitch deck
-└── demo/
-└── Demo video link
-
-## Hackathon Problem
-
-Cities generate large amounts of data from traffic, air quality, weather, public transportation, accidents, and other urban services. This data is often distributed across different datasets and mainly used for monitoring rather than timely, data-driven decisions.
-
-The challenge is to use heterogeneous urban data to automatically identify emerging problems, predict their potential impact, and recommend actionable interventions to city authorities.
-
-Our current implementation establishes the weather prediction and decision-support component. The next stage is to combine it with traffic and air-quality information to produce a broader urban-risk assessment.
-
-## Next Steps
-
-* Integrate traffic dataset
-* Combine weather, traffic, and air-quality signals
-* Identify cross-domain urban problems
-* Estimate potential impact
-* Generate combined city-level recommendations
-* Integrate LLM-based reasoning
-## Team
-
-Sandeep Ganesh Deepak Ganesh
-Rithikha S
-Jeffrey Navin
-Swetha Arul
+```text
+Urban Data
+    ↓
+Data Preprocessing
+    ↓
+Machine Learning
+    ↓
+Exasol
+    ↓
+Predictions
+    ↓
+Amazon Nova
+    ↓
+Actionable Recommendation
