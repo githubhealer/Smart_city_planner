@@ -13,7 +13,10 @@ The current implementation focuses on the weather component and demonstrates the
 * Rain probability prediction using Exasol Python UDFs
 * Rain-risk classification
 * City action recommendations based on predicted risk
-* Planned integration of traffic and air-quality data
+* Air-quality forecasting using XGBoost
+* Next-hour PM2.5 prediction
+* Air-quality risk scoring
+* LLM-based air-quality explanation
 
 ## Technologies
 
@@ -25,6 +28,9 @@ The current implementation focuses on the weather component and demonstrates the
 * scikit-learn
 * Logistic Regression
 * Random Forest
+* XGBoost
+* Pandas
+* LLM
 
 ## Urban Datasets
 
@@ -50,15 +56,30 @@ Integration: To be added
 
 ### Air Quality
 
-Air-quality data will be used to identify pollution-related conditions and their interaction with weather and traffic.
+Air-quality data is used to forecast near-term pollution levels and identify air-quality risks.
 
-Integration: To be added
+Current implementation:
 
-The current implementation has completed the weather-based prediction pipeline. Traffic and air-quality integration are part of the overall solution and are the next components of the system.
+* PM2.5, PM10, NO2, SO2 and O3
+* Air-quality preprocessing and duplicate removal
+* Temporal feature engineering
+* Next-hour PM2.5 prediction using XGBoost
+* Project-specific air-quality risk scoring
+* LLM-based explanation and recommendations
+
+Model performance:
+
+* MAE: 1.256 µg/m³
+* RMSE: 1.811 µg/m³
+* R²: 0.964
+
+Data source: Milan Air Quality and Weather Dataset (Kaggle)
 
 ## Current ML Pipeline
 
 Weather Data → Daily Aggregation → Feature Engineering → Exasol → Random Forest → Rain Probability → Rain Risk → City Action
+
+Air Quality Data → Preprocessing → Feature Engineering → Exasol → XGBoost → Next-hour PM2.5 → Air Quality Risk → LLM Explanation
 
 The planned complete urban-data pipeline is:
 
@@ -153,12 +174,11 @@ Our current implementation establishes the weather prediction and decision-suppo
 ## Next Steps
 
 * Integrate traffic dataset
-* Integrate air-quality dataset
 * Combine weather, traffic, and air-quality signals
 * Identify cross-domain urban problems
 * Estimate potential impact
 * Generate combined city-level recommendations
-
+* Integrate LLM-based reasoning
 ## Team
 
 Sandeep Ganesh Deepak Ganesh
