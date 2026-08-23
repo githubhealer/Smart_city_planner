@@ -1,4 +1,4 @@
-#UrbanSense AI
+## UrbanSense AI
 
 An urban decision-support system for the Exasol AI Build Hackathon. The project combines heterogeneous city data such as weather, traffic, and air quality to identify emerging urban problems, estimate their potential impact, and recommend actionable interventions.
 
